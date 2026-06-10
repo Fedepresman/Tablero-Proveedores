@@ -515,19 +515,67 @@ function render(){
       </div>`;
 
   } else if(view==='radar'){
-    const radarTitle = drillProv ? `Radar — ${drillProv} vs Objetivo` : 'Radar — Empresa vs Objetivo';
-    const radarSub   = drillProv
-      ? `Última auditoría de ${drillProv} vs objetivo ${OBJ}%`
-      : `Promedio de últimas auditorías vs objetivo ${OBJ}% — hacé drill-down en "Proveedores" para ver uno específico`;
     el.innerHTML=`
       ${kpiHtml(data)}
       <div class="card">
-        <div class="card-title">${radarTitle}</div>
-        <div class="card-sub">${radarSub}</div>
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          Radar S1–S5
+          <select id="radarSelProv" style="font-family:Inter,sans-serif;font-size:12px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;cursor:pointer;outline:none;max-width:220px"></select>
+        </div>
+        <div class="card-sub" id="radarSubtitle">Última auditoría vs objetivo ${OBJ}%</div>
         <div class="radar-legend" id="rLeg"></div>
         <div style="position:relative;height:380px"><canvas id="cRadar" role="img" aria-label="Radar">Radar.</canvas></div>
       </div>`;
-    makeRadar(data,'cRadar','rLeg');
+    // Poblar selector con empresa + cada proveedor
+    const provList = [...new Set(data.map(d=>d.proveedor))].sort();
+    const selProv = document.getElementById('radarSelProv');
+    selProv.innerHTML = `<option value="__empresa__">Empresa completa</option>` +
+      provList.map(p=>`<option value="${p}">${p}</option>`).join('');
+    // Si venimos de un drill, preseleccionar ese proveedor
+    if(drillProv) selProv.value = drillProv;
+    const drawProvRadar = (selVal) => {
+      let subjectRow, subjectLabel, fechaLabel = '';
+      if(selVal === '__empresa__') {
+        const ultimas = ultimaPorProveedor(data);
+        subjectRow = { proveedor:'Empresa' };
+        CATS.forEach(cat => { subjectRow[cat] = avg(ultimas.map(r=>r[cat])); });
+        subjectLabel = 'Empresa';
+        document.getElementById('radarSubtitle').textContent = `Promedio de últimas auditorías vs objetivo ${OBJ}%`;
+      } else {
+        const allRows = DATA.filter(r=>r.proveedor===selVal);
+        const ultimas = ultimaPorProveedor(allRows);
+        subjectRow = ultimas[0];
+        subjectLabel = selVal;
+        fechaLabel = subjectRow ? subjectRow.fecha.substring(0,7) : '';
+        document.getElementById('radarSubtitle').textContent = `Última auditoría de ${selVal}${fechaLabel ? ' — '+fechaLabel : ''} vs objetivo ${OBJ}%`;
+      }
+      const subjectVals = CATS.map(cat => subjectRow ? Math.round(subjectRow[cat]) : 0);
+      const objVals = CATS.map(()=>OBJ);
+      const legFecha = fechaLabel ? ` <span class="fecha-tag">${fechaLabel}</span>` : '';
+      document.getElementById('rLeg').innerHTML =
+        `<span class="rleg"><span class="rleg-dot" style="background:#2f81f7"></span>${subjectLabel}${legFecha}</span>` +
+        `<span class="rleg"><span class="rleg-dot" style="background:#3fb950"></span>Objetivo (${OBJ}%)</span>`;
+      setTimeout(()=>{
+        const ctx=document.getElementById('cRadar'); if(!ctx) return;
+        if(charts['cRadar']) charts['cRadar'].destroy();
+        charts['cRadar']=new Chart(ctx,{
+          type:'radar',
+          data:{ labels:CATS, datasets:[
+            { label:subjectLabel, data:subjectVals, borderColor:'#2f81f7', backgroundColor:'rgba(47,129,247,0.12)', borderWidth:2, pointRadius:4, pointBackgroundColor:'#2f81f7' },
+            { label:'Objetivo', data:objVals, borderColor:'#3fb950', backgroundColor:'rgba(63,185,80,0.06)', borderWidth:2, borderDash:[5,4], pointRadius:0, fill:true }
+          ]},
+          options:{responsive:true,maintainAspectRatio:false, plugins:{legend:{display:false}},
+            scales:{r:{min:0,max:100,
+              ticks:{display:true,stepSize:25,color:'#7d8590',font:{size:9},backdropColor:'transparent'},
+              grid:{color:'rgba(255,255,255,0.06)'}, angleLines:{color:'rgba(255,255,255,0.06)'},
+              pointLabels:{color:'#7d8590',font:{family:'Inter',size:11}}
+            }}
+          }
+        });
+      },50);
+    };
+    selProv.onchange = () => drawProvRadar(selProv.value);
+    drawProvRadar(selProv.value);
 
   } else if(view==='comparar'){
     el.innerHTML=`
