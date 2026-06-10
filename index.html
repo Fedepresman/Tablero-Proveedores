@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoría Proveedores CNC — FAdeA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d1117;--bg2:#161b22;--bg3:#1c2230;--border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.1);--text:#e6edf3;--muted:#7d8590;--accent:#2f81f7;--green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#bc8cff;--cyan:#39d353;--r:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:13px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{display:flex;align-items:center;background:var(--bg2);border-bottom:1px solid var(--border);height:52px;flex-shrink:0}
+.topbar-logo{width:160px;flex-shrink:0;padding:0 20px;border-right:1px solid var(--border);height:100%;display:flex;flex-direction:column;justify-content:center}
+.topbar-logo .name{font-size:13px;font-weight:600;color:var(--text)}
+.topbar-logo .sub{font-size:10px;color:var(--muted);margin-top:1px}
+.topbar-center{flex:1;padding:0 24px;display:flex;flex-direction:column;justify-content:center}
+.topbar-center .page-title{font-size:15px;font-weight:600;color:var(--text)}
+.topbar-center .breadcrumb{font-size:11px;margin-top:1px}
+.topbar-right{display:flex;gap:8px;padding:0 20px;flex-shrink:0;align-items:center}
+.topbar-right select{font-family:'Inter',sans-serif;font-size:12px;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:6px 28px 6px 10px;cursor:pointer;outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237d8590'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-width:140px}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:16px}
+.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:13px;color:var(--muted)}
+.body-layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:160px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav-section{font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;padding:14px 16px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 16px;font-size:12px;color:var(--muted);cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:all .15s}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,0.04)}
+.nav-item.active{color:var(--text);background:rgba(47,129,247,0.12)}
+.nav-item.active .nav-icon{color:var(--accent)}
+.nav-icon{font-size:14px;width:16px;text-align:center;flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:20px 24px;background:var(--bg)}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kpi-color,var(--accent))}
+.kpi-label{font-size:10px;font-weight:600;letter-spacing:.07em;color:var(--muted);text-transform:uppercase;margin-bottom:6px}
+.kpi-val{font-size:28px;font-weight:600;color:var(--text);letter-spacing:-1px;line-height:1}
+.kpi-desc{font-size:11px;color:var(--muted);margin-top:4px}
+.kpi-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:500;margin-top:8px;padding:2px 8px;border-radius:20px}
+.b-ok{background:rgba(63,185,80,.12);color:var(--green)}
+.b-warn{background:rgba(210,153,34,.12);color:var(--amber)}
+.b-bad{background:rgba(248,81,73,.12);color:var(--red)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.row2.wide{grid-template-columns:55% 1fr}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px}
+.card-title{font-size:13px;font-weight:600;color:var(--text)}
+.card-sub{font-size:11px;color:var(--muted);margin-top:2px;margin-bottom:14px}
+.bar-list{display:flex;flex-direction:column;gap:0}
+.bar-row{display:flex;align-items:center;gap:10px;padding:9px 4px;cursor:pointer;border-radius:6px;transition:background .12s}
+.bar-row:hover{background:rgba(255,255,255,0.03)}
+.bar-row.no-drill{cursor:default}
+.bar-name{flex:0 0 160px;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;height:8px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.bar-obj{position:absolute;top:0;bottom:0;width:1.5px;background:rgba(248,81,73,0.5)}
+.bar-num{flex:0 0 36px;text-align:right;font-size:12px;color:var(--muted)}
+.drill-tag{font-size:10px;color:var(--accent);background:rgba(47,129,247,.1);border:1px solid rgba(47,129,247,.2);border-radius:5px;padding:2px 8px;display:inline-flex;align-items:center;gap:4px}
+.radar-legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}
+.rleg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+.rleg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.last-update{font-size:10px;color:var(--muted);padding:2px 8px;background:var(--bg3);border-radius:5px;border:1px solid var(--border)}
+/* CATS GRID */
+.cats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px}
+.cat-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 12px;cursor:pointer;transition:border-color .15s}
+.cat-card:hover{border-color:var(--accent)}
+.cat-name{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.cat-val{font-size:22px;font-weight:600;letter-spacing:-.5px;line-height:1}
+.cat-bar{height:4px;background:rgba(255,255,255,0.05);border-radius:2px;margin-top:8px;overflow:hidden}
+.cat-bar-fill{height:100%;border-radius:2px}
+/* PREGUNTA CARD */
+.preg-row{display:flex;gap:12px;padding:10px 8px;border-bottom:1px solid var(--border);align-items:flex-start}
+.preg-row:last-child{border-bottom:none}
+.preg-score{flex:0 0 44px;text-align:center}
+.preg-score .val{font-size:18px;font-weight:600;line-height:1}
+.preg-score .max{font-size:10px;color:var(--muted)}
+.preg-score .bar{height:4px;border-radius:2px;margin-top:5px}
+.preg-texto{flex:1;font-size:12px;color:var(--text);line-height:1.5}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
+@media(max-width:860px){.sidebar{display:none}.kpi-row{grid-template-columns:1fr 1fr}.row2,.row2.wide{grid-template-columns:1fr}.cats-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="name">Auditoría CNC</div>
+    <div class="sub">FAdeA — Proveedores</div>
+  </div>
+  <div class="topbar-center">
+    <div class="page-title" id="page-title">Resumen empresa</div>
+    <div class="breadcrumb" id="breadcrumb"></div>
+  </div>
+  <div class="topbar-right">
+    <span class="last-update" id="last-update">Cargando...</span>
+    <select id="sel-anio" onchange="applyFilters()"><option value="">Todos los años</option></select>
+  </div>
+</div>
+
+<div class="body-layout">
+  <aside class="sidebar">
+    <div class="nav-section">Vistas</div>
+    <button class="nav-item active" onclick="setView('empresa')"><span class="nav-icon">⊞</span> Empresa</button>
+    <button class="nav-item" onclick="setView('proveedor')"><span class="nav-icon">🏭</span> Proveedores</button>
+    <button class="nav-item" onclick="setView('categoria')"><span class="nav-icon">⚙</span> Categorías</button>
+    <div class="nav-section">Análisis</div>
+    <button class="nav-item" onclick="setView('radar')"><span class="nav-icon">✦</span> Radar</button>
+    <button class="nav-item" onclick="setView('comparar')"><span class="nav-icon">⇄</span> Comparar</button>
+  </aside>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">Cargando datos desde Google Sheets...</div>
+  </div>
+  <div class="content" id="content" style="display:none"></div>
+</div>
+
+<script>
+// ══ URL DEL APPS SCRIPT — reemplazá por el nuevo cuando corresponda ══
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1TWs9Q-LnMTmx8tqaUl_DDeO5_sUh09GnAeheMuslw_sARZ_l7H8x8N7TKG3M8ks/exec';
+
+const OBJ = 80; // objetivo %
+const CATS = ['Recepción','Mecanizado','Desmarcado','Medición','Emb y Desp','Sistema'];
+const CAT_COLS = {
+  'Recepción':  ['Recepción 1','Recepción 2','Recepción 3'],
+  'Mecanizado': ['Mecanizado 1','Mecanizado 2','Mecanizado 3','Mecanizado 4','Mecanizado 5'],
+  'Desmarcado': ['Desmarcado 1','Desmarcado 2','Desmarcado 3'],
+  'Medición':   ['Medición 1','Medición 2','Medición 3','Medición 4'],
+  'Emb y Desp': ['Emb y Desp 1','Emb y Desp 2'],
+  'Sistema':    ['Sistema 1','Sistema 2','Sistema 3'],
+};
+const PREGUNTAS = [
+  {cat:'Recepción', col:'Recepción 1', texto:'¿Se aplica algún procedimiento para recepción de la materia prima enviada por FAdeA?'},
+  {cat:'Recepción', col:'Recepción 2', texto:'¿Existe un procedimiento para gestionar un cambio de versión en planos, instrucciones de mecanizado o especificaciones recibidas?'},
+  {cat:'Recepción', col:'Recepción 3', texto:'¿Se ha preparado un lugar destinado específicamente al material de FAdeA?'},
+  {cat:'Mecanizado',col:'Mecanizado 1',texto:'¿Cómo se realiza la preparación y control de herramientas?'},
+  {cat:'Mecanizado',col:'Mecanizado 2',texto:'¿El trabajo en curso está protegido de la suciedad, contaminación o daño durante las operaciones de mecanizado?'},
+  {cat:'Mecanizado',col:'Mecanizado 3',texto:'¿Los líquidos empleados son los autorizados por el cliente o están aprobados según procedimiento interno?'},
+  {cat:'Mecanizado',col:'Mecanizado 4',texto:'¿La configuración de la pieza y el programa CNC corresponden con la versión vigente del diseño?'},
+  {cat:'Mecanizado',col:'Mecanizado 5',texto:'¿Las áreas de almacenamiento están claramente delimitadas y señalizadas para evitar cruce o mezcla de PN?'},
+  {cat:'Desmarcado',col:'Desmarcado 1',texto:'¿Se encuentra el personal capacitado con un procedimiento para efectuar la operación de desmarcado?'},
+  {cat:'Desmarcado',col:'Desmarcado 2',texto:'¿El puesto de desmarcado cuenta con las herramientas adecuadas para realizar la operación?'},
+  {cat:'Desmarcado',col:'Desmarcado 3',texto:'¿El personal aplica el procedimiento de protección contra la corrosión luego del desmarcado?'},
+  {cat:'Medición',  col:'Medición 1',  texto:'¿Está definido el lugar de los instrumentos de medición y control, y se encuentran identificados correctamente?'},
+  {cat:'Medición',  col:'Medición 2',  texto:'¿Confirma la disponibilidad de equipos de medición adecuados al tipo de inspección requerida?'},
+  {cat:'Medición',  col:'Medición 3',  texto:'¿Están los equipos de medición calibrados y con certificado de calibración vigente?'},
+  {cat:'Medición',  col:'Medición 4',  texto:'¿El personal de medición se encuentra debidamente calificado?'},
+  {cat:'Emb y Desp',col:'Emb y Desp 1',texto:'¿El embalaje / identificación de las piezas es adecuado al tipo de producto y destino final? (NPF-LOG-008)'},
+  {cat:'Emb y Desp',col:'Emb y Desp 2',texto:'¿Cómo se maneja documentación relacionada con la conformidad / No conformidad en la entrega de piezas mecanizadas?'},
+  {cat:'Sistema',   col:'Sistema 1',   texto:'¿El proveedor cuenta con un sistema de gestión de la calidad de la producción?'},
+  {cat:'Sistema',   col:'Sistema 2',   texto:'¿Cómo garantiza el cumplimiento de las entregas pactadas con el cliente?'},
+  {cat:'Sistema',   col:'Sistema 3',   texto:'¿Cómo se gestionan los costos de producción?'},
+];
+const COLORS = ['#2f81f7','#3fb950','#d29922','#bc8cff','#f85149','#39d353','#58a6ff'];
+
+let DATA = [];
+let view='empresa', drillProv=null, drillCat=null, filtAnio='';
+let charts={};
+
+// ── helpers ──
+const avg  = a => a.length ? Math.round(a.reduce((x,y)=>x+y,0)/a.length) : 0;
+const col  = v => v>=OBJ?'var(--green)':v>=50?'var(--amber)':'var(--red)';
+const bcls = v => v>=OBJ?'b-ok':v>=50?'b-warn':'b-bad';
+const btxt = v => v>=OBJ?'✓ En objetivo':v>=50?'⚠ Por debajo':'✗ Crítico';
+const groupBy = (arr,k) => arr.reduce((g,d)=>{ (g[d[k]]=g[d[k]]||[]).push(d); return g; },{});
+const destroyCharts = () => { Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; };
+
+// ── pct total de una fila ──
+function rowPct(r){
+  let sum=0, max=0;
+  Object.values(CAT_COLS).forEach(cols=>{ cols.forEach(c=>{ sum+=Number(r[c]||0); max+=5; }); });
+  return Math.round(sum/max*100);
+}
+
+// ── pct de una categoría para una fila ──
+function catPct(r, cat){
+  const cols = CAT_COLS[cat];
+  const sum = cols.reduce((a,c)=>a+Number(r[c]||0),0);
+  return Math.round(sum/(cols.length*5)*100);
+}
+
+async function loadData(){
+  try {
+    const res = await fetch(SCRIPT_URL);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
+
+    const get = (r,...keys) => { for(const k of keys){ if(r[k]!==undefined && r[k]!=='') return r[k]; } return ''; };
+    const num = v => isNaN(Number(v))?0:Number(v);
+
+    DATA = raw.map(r => {
+      const row = {
+        proveedor: String(get(r,'Proveedor Auditado','proveedor')||'').trim(),
+        fecha:     String(get(r,'Fecha','fecha')||'').substring(0,10),
+        anio:      num(get(r,'Año','Anio','anio')),
+      };
+      // Copiar todos los valores de sub-preguntas
+      PREGUNTAS.forEach(p => { row[p.col] = num(get(r, p.col)); });
+      // Calcular pct por categoría
+      CATS.forEach(cat => { row[cat] = catPct(row, cat); });
+      row.total_pct = rowPct(row);
+      return row;
+    }).filter(d => d.proveedor);
+
+    const now = new Date();
+    document.getElementById('last-update').textContent =
+      `Actualizado ${now.toLocaleDateString('es-AR')} ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+
+    buildFilters();
+    document.getElementById('loading').style.display='none';
+    document.getElementById('content').style.display='block';
+    render();
+  } catch(err){
+    document.getElementById('loading').innerHTML=`
+      <div style="background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2);border-radius:10px;padding:20px 24px;margin:24px;color:var(--red);font-size:13px;line-height:1.6">
+        <strong style="display:block;margin-bottom:6px">No se pudieron cargar los datos</strong>
+        Error: ${err.message}<br><br>
+        Verificá que el Apps Script esté publicado y con acceso "Cualquier persona".
+      </div>`;
+  }
+}
+
+function buildFilters(){
+  const sa=document.getElementById('sel-anio');
+  while(sa.options.length>1) sa.remove(1);
+  [...new Set(DATA.map(d=>d.anio))].sort().forEach(a=>{ const o=document.createElement('option'); o.value=a; o.textContent=a; sa.appendChild(o); });
+}
+
+function applyFilters(){ filtAnio=document.getElementById('sel-anio').value; render(); }
+
+function getFiltered(){
+  let d=DATA.filter(r=>(!filtAnio||String(r.anio)===String(filtAnio)));
+  if(drillProv) d=d.filter(r=>r.proveedor===drillProv);
+  return d;
+}
+
+function setView(v){ view=v; drillProv=null; drillCat=null;
+  const titles={empresa:'Resumen empresa',proveedor:'Por proveedor',categoria:'Por categoría',radar:'Radar por proveedor',comparar:'Comparar proveedores'};
+  document.getElementById('page-title').textContent=titles[v]||v;
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.getAttribute('onclick').includes(`'${v}'`)));
+  updateBreadcrumb(); render();
+}
+
+function drillDown(nivel,valor){
+  if(nivel==='proveedor'){ drillProv=valor; drillCat=null; view='categoria'; document.getElementById('page-title').textContent='Categorías'; }
+  else if(nivel==='categoria'){ drillCat=valor; view='preguntas'; document.getElementById('page-title').textContent=valor; }
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  updateBreadcrumb(); render();
+}
+
+function updateBreadcrumb(){
+  const bc=document.getElementById('breadcrumb');
+  let h=`<span onclick="setView('empresa')" style="cursor:pointer;color:var(--accent)">FAdeA</span>`;
+  if(drillProv){
+    h+=` <span style="color:var(--muted)">›</span> `;
+    if(drillCat){
+      h+=`<span onclick="drillProv='${drillProv}';drillCat=null;view='categoria';updateBreadcrumb();render()" style="cursor:pointer;color:var(--accent)">${drillProv}</span>`;
+      h+=` <span style="color:var(--muted)">›</span> <span style="color:var(--text)">${drillCat}</span>`;
+    } else {
+      h+=`<span style="color:var(--text)">${drillProv}</span>`;
+    }
+  }
+  bc.innerHTML=h;
+}
+
+// ── KPIs ──
+function kpiHtml(data){
+  const scores=data.map(d=>d.total_pct);
+  const a=avg(scores);
+  const provs=new Set(data.map(d=>d.proveedor)).size;
+  const enObj=data.filter(d=>d.total_pct>=OBJ).length;
+  return `<div class="kpi-row">
+    <div class="kpi" style="--kpi-color:${col(a)}">
+      <div class="kpi-label">Puntaje promedio</div>
+      <div class="kpi-val">${a}%</div>
+      <div class="kpi-desc">sobre objetivo ${OBJ}%</div>
+      <span class="kpi-badge ${bcls(a)}">${btxt(a)}</span>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--accent)">
+      <div class="kpi-label">Objetivo</div>
+      <div class="kpi-val" style="color:var(--accent)">${OBJ}%</div>
+      <div class="kpi-desc">todas las categorías</div>
+    </div>
+    <div class="kpi" style="--kpi-color:var(--purple)">
+      <div class="kpi-label">Auditorías</div>
+      <div class="kpi-val" style="color:var(--purple)">${data.length}</div>
+      <div class="kpi-desc">${provs} proveedor${provs!==1?'es':''}</div>
+    </div>
+    <div class="kpi" style="--kpi-color:${enObj===data.length?'var(--green)':'var(--amber)'}">
+      <div class="kpi-label">En objetivo</div>
+      <div class="kpi-val" style="color:${enObj===data.length?'var(--green)':'var(--amber)'}">${enObj}/${data.length}</div>
+      <div class="kpi-desc">proveedores</div>
+    </div>
+  </div>`;
+}
+
+// ── Barras con línea de objetivo ──
+function barsHtml(entries, nivelDrill){
+  return entries.map(e=>{
+    const oc=nivelDrill?`onclick="drillDown('${nivelDrill}','${e.name.replace(/'/g,"\\'")}')"`:''
+    const cls=nivelDrill?'':'no-drill';
+    return `<div class="bar-row ${cls}" ${oc}>
+      <span class="bar-name" title="${e.name}">${e.name}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${e.score}%;background:${col(e.score)}"></div>
+        <div class="bar-obj" style="left:${OBJ}%"></div>
+      </div>
+      <span class="bar-num">${e.score}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Categorías como cards ──
+function catsGridHtml(data, conDrill){
+  return `<div class="cats-grid">${CATS.map(cat=>{
+    const v=avg(data.map(d=>d[cat]));
+    const dc=conDrill?`onclick="drillDown('categoria','${cat}')"`:''
+    return `<div class="cat-card" ${dc}>
+      <div class="cat-name">${cat}</div>
+      <div class="cat-val" style="color:${col(v)}">${v}%</div>
+      <div class="cat-bar"><div class="cat-bar-fill" style="width:${v}%;background:${col(v)}"></div></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ── Preguntas de una categoría ──
+function preguntasHtml(data, cat){
+  const pregs=PREGUNTAS.filter(p=>p.cat===cat);
+  return pregs.map(p=>{
+    const vals=data.map(d=>Number(d[p.col]||0));
+    const a=avg(vals);
+    const pct=Math.round(a/5*100);
+    return `<div class="preg-row">
+      <div class="preg-score">
+        <div class="val" style="color:${col(pct)}">${a}</div>
+        <div class="max">/ 5</div>
+        <div class="bar" style="background:${col(pct)};width:${pct}%"></div>
+      </div>
+      <div class="preg-texto">${p.texto}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Radar ──
+function makeRadar(data, id, legId){
+  const provs=Object.entries(groupBy(data,'proveedor'));
+  const datasets=provs.slice(0,6).map(([name,rows],i)=>({
+    label:name,
+    data:CATS.map(cat=>avg(rows.map(r=>r[cat]))),
+    borderColor:COLORS[i], backgroundColor:COLORS[i]+'18',
+    borderWidth:2, pointRadius:3, pointBackgroundColor:COLORS[i]
+  }));
+  document.getElementById(legId).innerHTML=provs.slice(0,6).map(([n],i)=>
+    `<span class="rleg"><span class="rleg-dot" style="background:${COLORS[i]}"></span>${n}</span>`
+  ).join('');
+  setTimeout(()=>{
+    const ctx=document.getElementById(id); if(!ctx) return;
+    if(charts[id]) charts[id].destroy();
+    charts[id]=new Chart(ctx,{
+      type:'radar',
+      data:{labels:CATS, datasets},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{r:{min:0,max:100,
+          ticks:{display:false,stepSize:20},
+          grid:{color:'rgba(255,255,255,0.06)'},
+          angleLines:{color:'rgba(255,255,255,0.06)'},
+          pointLabels:{color:'#7d8590',font:{family:'Inter',size:11}}
+        }}
+      }
+    });
+  },50);
+}
+
+// ── Barras agrupadas comparación ──
+function makeGroupedBars(data, id){
+  const provs=Object.entries(groupBy(data,'proveedor'));
+  const datasets=provs.slice(0,6).map(([name,rows],i)=>({
+    label:name,
+    data:CATS.map(cat=>avg(rows.map(r=>r[cat]))),
+    backgroundColor:COLORS[i]+'cc', borderColor:COLORS[i], borderWidth:1, borderRadius:4
+  }));
+  // dataset objetivo
+  datasets.push({label:'Objetivo',data:CATS.map(()=>OBJ),
+    type:'line',borderColor:'rgba(248,81,73,0.5)',borderDash:[5,4],
+    borderWidth:1.5,pointRadius:0,fill:false,order:0});
+  setTimeout(()=>{
+    const ctx=document.getElementById(id); if(!ctx) return;
+    if(charts[id]) charts[id].destroy();
+    charts[id]=new Chart(ctx,{
+      type:'bar',
+      data:{labels:CATS, datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#7d8590',font:{size:11}}}},
+        scales:{
+          y:{min:0,max:100,ticks:{color:'#7d8590',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.04)'}},
+          x:{ticks:{color:'#7d8590',font:{size:10}},grid:{display:false}}
+        }
+      }
+    });
+  },50);
+}
+
+// ══ RENDER ══
+function render(){
+  destroyCharts();
+  const data=getFiltered();
+  const el=document.getElementById('content');
+
+  if(view==='empresa'){
+    const byProv=groupBy(data,'proveedor');
+    const provEntries=Object.entries(byProv).map(([k,rows])=>({name:k,score:avg(rows.map(r=>r.total_pct))})).sort((a,b)=>b.score-a.score);
+    const catEntries=CATS.map(cat=>({name:cat,score:avg(data.map(d=>d[cat]))})).sort((a,b)=>b.score-a.score);
+    el.innerHTML=`
+      ${kpiHtml(data)}
+      <div class="row2 wide">
+        <div class="card">
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+            Por proveedor <span class="drill-tag">🔍 drill-down</span>
+          </div>
+          <div class="card-sub">Hacé clic para ver detalle por categoría</div>
+          <div class="bar-list">${barsHtml(provEntries,'proveedor')}</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Por categoría</div>
+          <div class="card-sub">Promedio empresa (línea roja = objetivo 80%)</div>
+          <div class="bar-list">${barsHtml(catEntries,null)}</div>
+        </div>
+      </div>`;
+
+  } else if(view==='proveedor'){
+    const byProv=groupBy(data,'proveedor');
+    const provEntries=Object.entries(byProv).map(([k,rows])=>({name:k,score:avg(rows.map(r=>r.total_pct))})).sort((a,b)=>b.score-a.score);
+    el.innerHTML=`
+      ${kpiHtml(data)}
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          Puntaje por proveedor <span class="drill-tag">🔍 drill-down habilitado</span>
+        </div>
+        <div class="card-sub">Hacé clic en un proveedor para ver el detalle por categoría</div>
+        <div class="bar-list">${barsHtml(provEntries,'proveedor')}</div>
+      </div>`;
+
+  } else if(view==='categoria'){
+    const t=drillProv?`Categorías de: ${drillProv}`:'Todas las categorías';
+    el.innerHTML=`
+      ${kpiHtml(data)}
+      <div class="card">
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+          ${t} <span class="drill-tag">🔍 drill-down habilitado</span>
+        </div>
+        <div class="card-sub">Hacé clic en una categoría para ver las preguntas</div>
+        ${catsGridHtml(data, true)}
+      </div>`;
+
+  } else if(view==='preguntas'){
+    const cat=drillCat;
+    el.innerHTML=`
+      ${kpiHtml(data)}
+      <div class="card">
+        <div class="card-title">Preguntas — ${cat}</div>
+        <div class="card-sub">Puntaje promedio por pregunta (escala 0–5)</div>
+        ${preguntasHtml(data, cat)}
+      </div>`;
+
+  } else if(view==='radar'){
+    el.innerHTML=`
+      ${kpiHtml(data)}
+      <div class="card">
+        <div class="card-title">Radar por proveedor</div>
+        <div class="card-sub">Comparación de las 6 categorías entre proveedores (%)</div>
+        <div class="radar-legend" id="rLeg"></div>
+        <div style="position:relative;height:380px"><canvas id="cRadar" role="img" aria-label="Radar">Radar.</canvas></div>
+      </div>`;
+    makeRadar(data,'cRadar','rLeg');
+
+  } else if(view==='comparar'){
+    el.innerHTML=`
+      ${kpiHtml(data)}
+      <div class="card">
+        <div class="card-title">Comparación por categoría</div>
+        <div class="card-sub">Puntaje % por categoría para cada proveedor</div>
+        <div style="position:relative;height:380px"><canvas id="cBars" role="img" aria-label="Comparación">Comparación.</canvas></div>
+      </div>`;
+    makeGroupedBars(data,'cBars');
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
