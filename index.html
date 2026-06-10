@@ -61,7 +61,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .rleg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
 .rleg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
 .last-update{font-size:10px;color:var(--muted);padding:2px 8px;background:var(--bg3);border-radius:5px;border:1px solid var(--border)}
-/* CATS GRID */
 .cats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px}
 .cat-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 12px;cursor:pointer;transition:border-color .15s}
 .cat-card:hover{border-color:var(--accent)}
@@ -69,7 +68,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .cat-val{font-size:22px;font-weight:600;letter-spacing:-.5px;line-height:1}
 .cat-bar{height:4px;background:rgba(255,255,255,0.05);border-radius:2px;margin-top:8px;overflow:hidden}
 .cat-bar-fill{height:100%;border-radius:2px}
-/* PREGUNTA CARD */
 .preg-row{display:flex;gap:12px;padding:10px 8px;border-bottom:1px solid var(--border);align-items:flex-start}
 .preg-row:last-child{border-bottom:none}
 .preg-score{flex:0 0 44px;text-align:center}
@@ -77,6 +75,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .preg-score .max{font-size:10px;color:var(--muted)}
 .preg-score .bar{height:4px;border-radius:2px;margin-top:5px}
 .preg-texto{flex:1;font-size:12px;color:var(--text);line-height:1.5}
+.fecha-tag{display:inline-block;font-size:9px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.06);color:var(--muted);margin-left:4px;vertical-align:middle}
 ::-webkit-scrollbar{width:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
@@ -118,10 +117,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 </div>
 
 <script>
-// ══ URL DEL APPS SCRIPT — reemplazá por el nuevo cuando corresponda ══
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyDsDHCMsDC5tIcGLdLb0KH4RdN52wM7E2TbX9g9am6KogsUmw0bqHZ69m3lmN5rMVa/exec';
 
-const OBJ = 80; // objetivo %
+const OBJ = 80;
 const CATS = ['Recepción','Mecanizado','Desmarcado','Medición','Emb y Desp','Sistema'];
 const CAT_COLS = {
   'Recepción':  ['Recepción 1','Recepción 2','Recepción 3'],
@@ -167,18 +165,26 @@ const btxt = v => v>=OBJ?'✓ En objetivo':v>=50?'⚠ Por debajo':'✗ Crítico'
 const groupBy = (arr,k) => arr.reduce((g,d)=>{ (g[d[k]]=g[d[k]]||[]).push(d); return g; },{});
 const destroyCharts = () => { Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; };
 
-// ── pct total de una fila ──
 function rowPct(r){
   let sum=0, max=0;
   Object.values(CAT_COLS).forEach(cols=>{ cols.forEach(c=>{ sum+=Number(r[c]||0); max+=5; }); });
   return Math.round(sum/max*100);
 }
-
-// ── pct de una categoría para una fila ──
 function catPct(r, cat){
   const cols = CAT_COLS[cat];
   const sum = cols.reduce((a,c)=>a+Number(r[c]||0),0);
   return Math.round(sum/(cols.length*5)*100);
+}
+
+// ══ ÚLTIMA AUDITORÍA POR PROVEEDOR ══
+// Devuelve la fila más reciente de cada proveedor (por fecha)
+function ultimaPorProveedor(data) {
+  const byProv = groupBy(data, 'proveedor');
+  return Object.entries(byProv).map(([prov, rows]) => {
+    // Ordenar por fecha descendente y tomar la primera
+    const sorted = [...rows].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+    return sorted[0]; // fila más reciente
+  });
 }
 
 async function loadData(){
@@ -186,19 +192,15 @@ async function loadData(){
     const res = await fetch(SCRIPT_URL);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const raw = await res.json();
-
     const get = (r,...keys) => { for(const k of keys){ if(r[k]!==undefined && r[k]!=='') return r[k]; } return ''; };
     const num = v => isNaN(Number(v))?0:Number(v);
-
     DATA = raw.map(r => {
       const row = {
         proveedor: String(get(r,'Proveedor Auditado','proveedor')||'').trim(),
         fecha:     String(get(r,'Fecha','fecha')||'').substring(0,10),
         anio:      num(get(r,'Año','Anio','anio')),
       };
-      // Copiar todos los valores de sub-preguntas
       PREGUNTAS.forEach(p => { row[p.col] = num(get(r, p.col)); });
-      // Calcular pct por categoría
       CATS.forEach(cat => { row[cat] = catPct(row, cat); });
       row.total_pct = rowPct(row);
       return row;
@@ -207,7 +209,6 @@ async function loadData(){
     const now = new Date();
     document.getElementById('last-update').textContent =
       `Actualizado ${now.toLocaleDateString('es-AR')} ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
-
     buildFilters();
     document.getElementById('loading').style.display='none';
     document.getElementById('content').style.display='block';
@@ -227,7 +228,6 @@ function buildFilters(){
   while(sa.options.length>1) sa.remove(1);
   [...new Set(DATA.map(d=>d.anio))].sort().forEach(a=>{ const o=document.createElement('option'); o.value=a; o.textContent=a; sa.appendChild(o); });
 }
-
 function applyFilters(){ filtAnio=document.getElementById('sel-anio').value; render(); }
 
 function getFiltered(){
@@ -265,17 +265,17 @@ function updateBreadcrumb(){
   bc.innerHTML=h;
 }
 
-// ── KPIs ──
+// ── KPIs usando última auditoría de cada proveedor ──
 function kpiHtml(data){
-  const scores=data.map(d=>d.total_pct);
-  const a=avg(scores);
-  const provs=new Set(data.map(d=>d.proveedor)).size;
-  const enObj=data.filter(d=>d.total_pct>=OBJ).length;
+  const ultimas = ultimaPorProveedor(data);
+  const a = avg(ultimas.map(r=>r.total_pct));
+  const provs = ultimas.length;
+  const enObj = ultimas.filter(r=>r.total_pct>=OBJ).length;
   return `<div class="kpi-row">
     <div class="kpi" style="--kpi-color:${col(a)}">
-      <div class="kpi-label">Puntaje promedio</div>
+      <div class="kpi-label">Puntaje actual</div>
       <div class="kpi-val">${a}%</div>
-      <div class="kpi-desc">sobre objetivo ${OBJ}%</div>
+      <div class="kpi-desc">última auditoría por proveedor</div>
       <span class="kpi-badge ${bcls(a)}">${btxt(a)}</span>
     </div>
     <div class="kpi" style="--kpi-color:var(--accent)">
@@ -284,19 +284,40 @@ function kpiHtml(data){
       <div class="kpi-desc">todas las categorías</div>
     </div>
     <div class="kpi" style="--kpi-color:var(--purple)">
-      <div class="kpi-label">Auditorías</div>
-      <div class="kpi-val" style="color:var(--purple)">${data.length}</div>
-      <div class="kpi-desc">${provs} proveedor${provs!==1?'es':''}</div>
+      <div class="kpi-label">Proveedores</div>
+      <div class="kpi-val" style="color:var(--purple)">${provs}</div>
+      <div class="kpi-desc">auditados</div>
     </div>
-    <div class="kpi" style="--kpi-color:${enObj===data.length?'var(--green)':'var(--amber)'}">
+    <div class="kpi" style="--kpi-color:${enObj===provs?'var(--green)':'var(--amber)'}">
       <div class="kpi-label">En objetivo</div>
-      <div class="kpi-val" style="color:${enObj===data.length?'var(--green)':'var(--amber)'}">${enObj}/${data.length}</div>
+      <div class="kpi-val" style="color:${enObj===provs?'var(--green)':'var(--amber)'}">${enObj}/${provs}</div>
       <div class="kpi-desc">proveedores</div>
     </div>
   </div>`;
 }
 
-// ── Barras con línea de objetivo ──
+// ── Barras de proveedores con fecha visible ──
+function barsProvsHtml(data, nivelDrill){
+  const ultimas = ultimaPorProveedor(data);
+  return ultimas
+    .sort((a,b)=>b.total_pct-a.total_pct)
+    .map(r=>{
+      const oc = nivelDrill ? `onclick="drillDown('${nivelDrill}','${r.proveedor.replace(/'/g,"\\'")}')"` : '';
+      const cls = nivelDrill ? '' : 'no-drill';
+      const fechaLabel = r.fecha ? r.fecha.substring(0,7) : '';
+      return `<div class="bar-row ${cls}" ${oc}>
+        <span class="bar-name" title="${r.proveedor}">${r.proveedor}</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${r.total_pct}%;background:${col(r.total_pct)}"></div>
+          <div class="bar-obj" style="left:${OBJ}%"></div>
+        </div>
+        <span class="bar-num">${r.total_pct}%</span>
+        <span style="flex:0 0 56px;text-align:right;font-size:10px;color:var(--muted);font-style:italic">${fechaLabel}</span>
+      </div>`;
+    }).join('');
+}
+
+// ── Barras genéricas (categorías, sin fecha) ──
 function barsHtml(entries, nivelDrill){
   return entries.map(e=>{
     const oc=nivelDrill?`onclick="drillDown('${nivelDrill}','${e.name.replace(/'/g,"\\'")}')"`:''
@@ -314,9 +335,11 @@ function barsHtml(entries, nivelDrill){
 
 // ── Categorías como cards ──
 function catsGridHtml(data, conDrill){
+  // Si hay un proveedor en drill, usar solo su última auditoría
+  const rows = drillProv ? [ultimaPorProveedor(data)[0]].filter(Boolean) : ultimaPorProveedor(data);
   return `<div class="cats-grid">${CATS.map(cat=>{
-    const v=avg(data.map(d=>d[cat]));
-    const dc=conDrill?`onclick="drillDown('categoria','${cat}')"`:''
+    const v = avg(rows.map(r=>r[cat]));
+    const dc = conDrill ? `onclick="drillDown('categoria','${cat}')"` : '';
     return `<div class="cat-card" ${dc}>
       <div class="cat-name">${cat}</div>
       <div class="cat-val" style="color:${col(v)}">${v}%</div>
@@ -325,13 +348,14 @@ function catsGridHtml(data, conDrill){
   }).join('')}</div>`;
 }
 
-// ── Preguntas de una categoría ──
+// ── Preguntas de una categoría usando última auditoría ──
 function preguntasHtml(data, cat){
-  const pregs=PREGUNTAS.filter(p=>p.cat===cat);
+  const ultimas = ultimaPorProveedor(data);
+  const pregs = PREGUNTAS.filter(p=>p.cat===cat);
   return pregs.map(p=>{
-    const vals=data.map(d=>Number(d[p.col]||0));
-    const a=avg(vals);
-    const pct=Math.round(a/5*100);
+    const vals = ultimas.map(r=>Number(r[p.col]||0));
+    const a = avg(vals);
+    const pct = Math.round(a/5*100);
     return `<div class="preg-row">
       <div class="preg-score">
         <div class="val" style="color:${col(pct)}">${a}</div>
@@ -343,27 +367,53 @@ function preguntasHtml(data, cat){
   }).join('');
 }
 
-// ── Radar ──
+// ── Radar: sujeto activo (proveedor del drill o empresa) vs objetivo ──
 function makeRadar(data, id, legId){
-  const provs=Object.entries(groupBy(data,'proveedor'));
-  const datasets=provs.slice(0,6).map(([name,rows],i)=>({
-    label:name,
-    data:CATS.map(cat=>avg(rows.map(r=>r[cat]))),
-    borderColor:COLORS[i], backgroundColor:COLORS[i]+'18',
-    borderWidth:2, pointRadius:3, pointBackgroundColor:COLORS[i]
-  }));
-  document.getElementById(legId).innerHTML=provs.slice(0,6).map(([n],i)=>
-    `<span class="rleg"><span class="rleg-dot" style="background:${COLORS[i]}"></span>${n}</span>`
-  ).join('');
+  let subjectRow, subjectLabel, fechaLabel = '';
+
+  if(drillProv) {
+    // Última auditoría del proveedor seleccionado
+    const ultimas = ultimaPorProveedor(data);
+    subjectRow = ultimas[0]; // ya filtrado por drillProv en getFiltered
+    subjectLabel = drillProv;
+    fechaLabel = subjectRow ? subjectRow.fecha.substring(0,7) : '';
+  } else {
+    // Promedio de últimas auditorías de todos los proveedores
+    const ultimas = ultimaPorProveedor(data);
+    // Crear una fila virtual con promedios
+    subjectRow = { proveedor: 'Empresa' };
+    CATS.forEach(cat => { subjectRow[cat] = avg(ultimas.map(r=>r[cat])); });
+    subjectLabel = 'Empresa';
+  }
+
+  const subjectVals = CATS.map(cat => subjectRow ? Math.round(subjectRow[cat]) : 0);
+  const objVals = CATS.map(()=>OBJ);
+
+  const legFecha = fechaLabel ? ` <span class="fecha-tag">${fechaLabel}</span>` : '';
+  document.getElementById(legId).innerHTML =
+    `<span class="rleg"><span class="rleg-dot" style="background:#2f81f7"></span>${subjectLabel}${legFecha}</span>` +
+    `<span class="rleg"><span class="rleg-dot" style="background:#3fb950"></span>Objetivo (${OBJ}%)</span>`;
+
   setTimeout(()=>{
     const ctx=document.getElementById(id); if(!ctx) return;
     if(charts[id]) charts[id].destroy();
     charts[id]=new Chart(ctx,{
       type:'radar',
-      data:{labels:CATS, datasets},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      data:{
+        labels: CATS,
+        datasets:[
+          { label:subjectLabel, data:subjectVals,
+            borderColor:'#2f81f7', backgroundColor:'rgba(47,129,247,0.12)',
+            borderWidth:2, pointRadius:4, pointBackgroundColor:'#2f81f7' },
+          { label:'Objetivo', data:objVals,
+            borderColor:'#3fb950', backgroundColor:'rgba(63,185,80,0.06)',
+            borderWidth:2, borderDash:[5,4], pointRadius:0, fill:true }
+        ]
+      },
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
         scales:{r:{min:0,max:100,
-          ticks:{display:false,stepSize:20},
+          ticks:{display:true,stepSize:25,color:'#7d8590',font:{size:9},backdropColor:'transparent'},
           grid:{color:'rgba(255,255,255,0.06)'},
           angleLines:{color:'rgba(255,255,255,0.06)'},
           pointLabels:{color:'#7d8590',font:{family:'Inter',size:11}}
@@ -373,15 +423,14 @@ function makeRadar(data, id, legId){
   },50);
 }
 
-// ── Barras agrupadas comparación ──
+// ── Barras agrupadas comparación (última auditoría de cada proveedor) ──
 function makeGroupedBars(data, id){
-  const provs=Object.entries(groupBy(data,'proveedor'));
-  const datasets=provs.slice(0,6).map(([name,rows],i)=>({
-    label:name,
-    data:CATS.map(cat=>avg(rows.map(r=>r[cat]))),
+  const ultimas = ultimaPorProveedor(data);
+  const datasets = ultimas.slice(0,6).map((r,i)=>({
+    label: r.proveedor,
+    data: CATS.map(cat=>r[cat]),
     backgroundColor:COLORS[i]+'cc', borderColor:COLORS[i], borderWidth:1, borderRadius:4
   }));
-  // dataset objetivo
   datasets.push({label:'Objetivo',data:CATS.map(()=>OBJ),
     type:'line',borderColor:'rgba(248,81,73,0.5)',borderDash:[5,4],
     borderWidth:1.5,pointRadius:0,fill:false,order:0});
@@ -409,9 +458,8 @@ function render(){
   const el=document.getElementById('content');
 
   if(view==='empresa'){
-    const byProv=groupBy(data,'proveedor');
-    const provEntries=Object.entries(byProv).map(([k,rows])=>({name:k,score:avg(rows.map(r=>r.total_pct))})).sort((a,b)=>b.score-a.score);
-    const catEntries=CATS.map(cat=>({name:cat,score:avg(data.map(d=>d[cat]))})).sort((a,b)=>b.score-a.score);
+    const ultimas = ultimaPorProveedor(data);
+    const catEntries = CATS.map(cat=>({name:cat, score:avg(ultimas.map(r=>r[cat]))})).sort((a,b)=>b.score-a.score);
     el.innerHTML=`
       ${kpiHtml(data)}
       <div class="row2 wide">
@@ -419,36 +467,36 @@ function render(){
           <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
             Por proveedor <span class="drill-tag">🔍 drill-down</span>
           </div>
-          <div class="card-sub">Hacé clic para ver detalle por categoría</div>
-          <div class="bar-list">${barsHtml(provEntries,'proveedor')}</div>
+          <div class="card-sub">Última auditoría · fecha visible</div>
+          <div class="bar-list">${barsProvsHtml(data,'proveedor')}</div>
         </div>
         <div class="card">
           <div class="card-title">Por categoría</div>
-          <div class="card-sub">Promedio empresa (línea roja = objetivo 80%)</div>
+          <div class="card-sub">Promedio última auditoría (línea roja = objetivo ${OBJ}%)</div>
           <div class="bar-list">${barsHtml(catEntries,null)}</div>
         </div>
       </div>`;
 
   } else if(view==='proveedor'){
-    const byProv=groupBy(data,'proveedor');
-    const provEntries=Object.entries(byProv).map(([k,rows])=>({name:k,score:avg(rows.map(r=>r.total_pct))})).sort((a,b)=>b.score-a.score);
     el.innerHTML=`
       ${kpiHtml(data)}
       <div class="card">
         <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
           Puntaje por proveedor <span class="drill-tag">🔍 drill-down habilitado</span>
         </div>
-        <div class="card-sub">Hacé clic en un proveedor para ver el detalle por categoría</div>
-        <div class="bar-list">${barsHtml(provEntries,'proveedor')}</div>
+        <div class="card-sub">Última auditoría por proveedor · hacé clic para ver categorías</div>
+        <div class="bar-list">${barsProvsHtml(data,'proveedor')}</div>
       </div>`;
 
   } else if(view==='categoria'){
-    const t=drillProv?`Categorías de: ${drillProv}`:'Todas las categorías';
+    const t = drillProv ? `Categorías de: ${drillProv}` : 'Todas las categorías';
+    const ultima = drillProv ? ultimaPorProveedor(data)[0] : null;
+    const fechaTag = ultima ? `<span class="fecha-tag">${ultima.fecha.substring(0,7)}</span>` : '';
     el.innerHTML=`
       ${kpiHtml(data)}
       <div class="card">
         <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
-          ${t} <span class="drill-tag">🔍 drill-down habilitado</span>
+          ${t} ${fechaTag} <span class="drill-tag">🔍 drill-down habilitado</span>
         </div>
         <div class="card-sub">Hacé clic en una categoría para ver las preguntas</div>
         ${catsGridHtml(data, true)}
@@ -456,20 +504,26 @@ function render(){
 
   } else if(view==='preguntas'){
     const cat=drillCat;
+    const ultima = drillProv ? ultimaPorProveedor(data)[0] : null;
+    const fechaTag = ultima ? `<span class="fecha-tag">${ultima.fecha.substring(0,7)}</span>` : '';
     el.innerHTML=`
       ${kpiHtml(data)}
       <div class="card">
-        <div class="card-title">Preguntas — ${cat}</div>
-        <div class="card-sub">Puntaje promedio por pregunta (escala 0–5)</div>
+        <div class="card-title">Preguntas — ${cat} ${fechaTag}</div>
+        <div class="card-sub">Puntaje de la última auditoría (escala 0–5)</div>
         ${preguntasHtml(data, cat)}
       </div>`;
 
   } else if(view==='radar'){
+    const radarTitle = drillProv ? `Radar — ${drillProv} vs Objetivo` : 'Radar — Empresa vs Objetivo';
+    const radarSub   = drillProv
+      ? `Última auditoría de ${drillProv} vs objetivo ${OBJ}%`
+      : `Promedio de últimas auditorías vs objetivo ${OBJ}% — hacé drill-down en "Proveedores" para ver uno específico`;
     el.innerHTML=`
       ${kpiHtml(data)}
       <div class="card">
-        <div class="card-title">Radar por proveedor</div>
-        <div class="card-sub">Comparación de las 6 categorías entre proveedores (%)</div>
+        <div class="card-title">${radarTitle}</div>
+        <div class="card-sub">${radarSub}</div>
         <div class="radar-legend" id="rLeg"></div>
         <div style="position:relative;height:380px"><canvas id="cRadar" role="img" aria-label="Radar">Radar.</canvas></div>
       </div>`;
@@ -480,7 +534,7 @@ function render(){
       ${kpiHtml(data)}
       <div class="card">
         <div class="card-title">Comparación por categoría</div>
-        <div class="card-sub">Puntaje % por categoría para cada proveedor</div>
+        <div class="card-sub">Última auditoría de cada proveedor</div>
         <div style="position:relative;height:380px"><canvas id="cBars" role="img" aria-label="Comparación">Comparación.</canvas></div>
       </div>`;
     makeGroupedBars(data,'cBars');
